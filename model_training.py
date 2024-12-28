@@ -1,30 +1,58 @@
+# model_training.py
 import tensorflow as tf
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Flatten
+from mongo_utils import save_model_metadata
+import datetime
 import numpy as np
+from sklearn.preprocessing import StandardScaler
 
-# Generate random data for training
-(x_train, y_train), (x_test, y_test) = tf.keras.datasets.mnist.load_data()
+# Generate random data with scaling
+def generate_random_data(samples=1000, features=30):
+    X = np.random.rand(samples, features)  # Random features
+    y = np.random.randint(0, 2, samples)   # Random binary labels
+    return X, y
 
-# Normalize the data
-x_train, x_test = x_train / 255.0, x_test / 255.0
+# Scale data using StandardScaler
+def preprocess_data(X_train, X_test):
+    scaler = StandardScaler()
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_test_scaled = scaler.transform(X_test)
+    return X_train_scaled, X_test_scaled
 
-# Create a simple neural network model
-model = Sequential([
-    Flatten(input_shape=(28, 28)),
-    Dense(128, activation='relu'),
-    Dense(10, activation='softmax')
+# Build a more complex neural network model
+model = tf.keras.Sequential([
+    tf.keras.layers.Dense(128, activation='relu', input_shape=(30,)),
+    tf.keras.layers.Dropout(0.2),
+    tf.keras.layers.Dense(64, activation='relu'),
+    tf.keras.layers.Dense(32, activation='relu'),
+    tf.keras.layers.Dense(1, activation='sigmoid')
 ])
 
 # Compile the model
-model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+
+# Generate random data for training and testing
+X_train, y_train = generate_random_data(1000, 30)
+X_test, y_test = generate_random_data(200, 30)
+
+# Preprocess data
+X_train, X_test = preprocess_data(X_train, X_test)
 
 # Train the model
-model.fit(x_train, y_train, epochs=5)
+model.fit(X_train, y_train, epochs=5)
 
 # Evaluate the model
-test_loss, test_acc = model.evaluate(x_test, y_test)
+test_loss, test_acc = model.evaluate(X_test, y_test)
 print(f"Test accuracy: {test_acc}")
 
-# Save model weights
+# Save the model
 model.save('mnist_model.h5')
+
+# Save metadata to MongoDB
+metadata = {
+    "model_name": "Random Data Classifier v2",
+    "accuracy": test_acc,
+    "epochs": 5,
+    "date": datetime.datetime.utcnow(),
+    "model_file": "mnist_model.h5"
+}
+save_model_metadata(metadata)
